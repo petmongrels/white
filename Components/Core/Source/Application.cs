@@ -104,6 +104,38 @@ namespace White.Core
             return Attach(processes[0]);
         }
 
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool OpenProcessToken(IntPtr ProcessHandle, UInt32 DesiredAccess, out IntPtr TokenHandle);
+        private static uint TOKEN_QUERY = 0x0008;
+
+        /// <summary>
+        /// Attaches with existing process and to a given user
+        /// </summary>
+        /// <param name="processName"></param>
+        /// <param name="userName"></param>
+        /// <returns></returns>
+        public static Application Attach(String processName, String userName) {
+            Process[] processes = Process.GetProcessesByName(processName);
+            if (processes.Length == 0) throw new WhiteException("Could not find process named: " + processName);
+
+            foreach(Process process in processes) {
+                try {
+                    IntPtr ph = IntPtr.Zero;
+                    OpenProcessToken(process.Handle, TOKEN_QUERY, out ph);
+                    WindowsIdentity processIdentity = new WindowsIdentity(ph);
+
+                    if(processIdentity.Name == userName) {
+                        return Application.Attach(process);
+                    }
+                } catch(Exception ex) {
+                    //don't do anything here because the "OpenProcessToken" throws an error when
+                    //the current user doesn't have enough rights to get the process handle
+                }
+            }
+
+            throw new WhiteException("Could not find process named " + processName + " for User " + userName);
+        }
+
         /// <summary>
         /// Attaches to the process if it is running or launches a new process
         /// </summary>
